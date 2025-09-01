@@ -1,0 +1,88 @@
+@startuml container_diagram
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Container Diagram - Детализация архитектуры интеграции кол-центра
+
+LAYOUT_TOP_DOWN()
+
+Person(client, "Клиент банка", "Физическое лицо")
+Person(ccAgent, "Оператор кол-центра", "Сотрудник банка")
+Person(backOffice, "Сотрудник бэк-офиса", "Менеджер депозитов")
+
+System_Ext(partnerCC, "Партнерский кол-центр", "Внешняя CRM система")
+System_Ext(cbr, "ЦБ РФ", "Центральный банк РФ")
+System_Ext(smsOperator, "СМС-оператор", "Телеком провайдер")
+
+System_Boundary(bankSystems, "Банк Стандарт") {
+    
+    Container_Boundary(webLayer, "Веб-слой") {
+        Container(webPortal, "Веб-портал депозитов", "ASP.NET Core", "Микросервис для приема заявок с сайта и интернет-банка")
+        Container(webSite, "Сайт банка", "PHP + React", "Маркетинговый сайт с формой подачи заявок")
+        Container(internetBank, "Интернет-банк", "ASP.NET MVC", "Система интернет-банкинга (монолит)")
+    }
+    
+    Container_Boundary(serviceLayer, "Сервисный слой") {
+        Container(ratesService, "Сервис управления ставками", "ASP.NET Core", "REST API для расчета и распределения ставок")
+        ContainerDb(ratesDB, "База ставок", "MS SQL Server", "Хранение актуальных и исторических ставок")
+        Container(sftpService, "SFTP-сервис", "Linux + OpenSSH", "Файловый обмен с партнерским кол-центром")
+    }
+    
+    Container_Boundary(integration, "Интеграционный слой") {
+        Container(kafka, "Apache Kafka", "Message Broker", "Шина сообщений для асинхронной интеграции")
+        Container(apiGateway, "API Gateway", "nginx", "Маршрутизация и балансировка API запросов")
+    }
+    
+    Container_Boundary(internalSystems, "Внутренние системы") {
+        Container(callCenterApp, "Веб-приложение кол-центра", "React.js", "Frontend для операторов кол-центра")
+        Container(callCenterAPI, "API кол-центра", "Java Spring Boot", "Backend система кол-центра")
+        ContainerDb(callCenterDB, "База кол-центра", "PostgreSQL", "CRM данные и история обращений")
+        
+        Container(absApp, "АБС Desktop", "Delphi", "Рабочее место сотрудника бэк-офиса")
+        Container(absCore, "Ядро АБС", "PL/SQL", "Бизнес-логика банковских операций")
+        ContainerDb(absDB, "База АБС", "Oracle", "Основная банковская база данных")
+    }
+    
+    Container_Boundary(external, "Внешние сервисы") {
+        Container(smsGateway, "СМС-шлюз", "REST API", "Интеграция с телеком-оператором")
+    }
+}
+
+' Пользователи к веб-слою
+Rel(client, webSite, "Заполняет форму заявки", "HTTPS")
+Rel(client, internetBank, "Подает заявку на депозит", "HTTPS")
+Rel(ccAgent, callCenterApp, "Консультирует клиентов", "HTTPS")
+Rel(backOffice, absApp, "Обрабатывает заявки", "TCP")
+
+' Веб-слой к сервисам
+Rel(webSite, webPortal, "Отправляет данные заявки", "REST API")
+Rel(internetBank, webPortal, "Создает заявку клиента", "REST API")
+Rel(webPortal, ratesService, "Получает актуальные ставки", "REST API")
+
+' Кол-центр к сервису ставок
+Rel(callCenterApp, callCenterAPI, "Получает данные для консультации", "REST API")
+Rel(callCenterAPI, apiGateway, "Запрашивает ставки", "REST API")
+Rel(apiGateway, ratesService, "Проксирует запросы", "REST API")
+
+' Сервис ставок
+Rel(ratesService, ratesDB, "Сохраняет/читает ставки", "SQL")
+Rel(ratesService, cbr, "Получает ставки ЦБ", "HTTPS")
+Rel(ratesService, sftpService, "Генерирует файлы ставок", "File System")
+
+' Файловый обмен
+Rel(sftpService, partnerCC, "Передает файлы со ставками", "SFTP")
+
+' Интеграция через Kafka
+Rel(webPortal, kafka, "Публикует заявки", "Kafka Producer")
+Rel(ratesService, kafka, "Публикует обновления ставок", "Kafka Producer")
+Rel(kafka, absCore, "Доставляет заявки", "Kafka Consumer")
+
+' АБС
+Rel(absApp, absCore, "Выполняет операции", "Oracle Client")
+Rel(absCore, absDB, "Управляет данными", "SQL")
+Rel(absCore, smsGateway, "Отправляет уведомления", "REST API")
+Rel(smsGateway, smsOperator, "Доставляет СМС", "SMPP")
+
+' Кол-центр внутренние связи
+Rel(callCenterAPI, callCenterDB, "Управляет CRM данными", "SQL")
+
+@enduml

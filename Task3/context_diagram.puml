@@ -1,0 +1,26 @@
+@startuml Context_Diagram_MVP_Deposits
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title Диаграмма контекста C4 - MVP онлайн депозитов
+
+Person(client, "Клиент", "Существующий клиент банка")
+Person(newClient, "Новый клиент", "Потенциальный клиент банка")
+Person(employee, "Сотрудник бэк-офиса", "Обрабатывает заявки на депозиты")
+
+System(depositSystem, "Система онлайн депозитов", "MVP для подачи и обработки заявок на депозиты")
+
+System_Ext(cbr, "Центральный банк РФ", "Предоставляет ставки рефинансирования")
+System_Ext(smsProvider, "Телеком-оператор", "Отправка СМС-уведомлений")
+
+Rel(client, depositSystem, "Подает заявку на депозит", "HTTPS/Интернет-банк")
+Rel(newClient, depositSystem, "Подает заявку на депозит", "HTTPS/Сайт")
+Rel(employee, depositSystem, "Обрабатывает заявки", "Desktop/АБС")
+
+Rel(depositSystem, cbr, "Получает ставки рефинансирования", "REST API")
+Rel(depositSystem, smsProvider, "Отправляет СМС-уведомления", "REST API")
+
+Rel(depositSystem, client, "Уведомляет о статусе заявки", "СМС")
+Rel(depositSystem, newClient, "Уведомляет о статусе заявки", "СМС")
+
+SHOW_LEGEND()
+@enduml

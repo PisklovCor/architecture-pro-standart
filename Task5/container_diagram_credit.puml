@@ -1,0 +1,65 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Диаграмма контейнеров - Система онлайн кредитования
+
+Person(existing_client, "Существующий клиент")
+Person(new_client, "Новый клиент") 
+Person(credit_officer, "Сотрудник кредитного отдела")
+
+System_Boundary(bank_boundary, "Банк Стандарт") {
+    
+    Container(website, "Сайт банка", "PHP, React.js", "Информация о продуктах, подача заявок новыми клиентами")
+    Container(internet_bank, "Интернет-банк", "ASP.NET MVC, MS SQL", "Личный кабинет, просмотр предложений, подача заявок")
+    
+    Container(credit_portal, "Веб-портал кредитных заявок", "ASP.NET Core, MS SQL", "Прием и обработка кредитных заявок, отображение предложений")
+    Container(preapproval_service, "Сервис предодобренных предложений", "Python, PostgreSQL", "Расчет персональных кредитных предложений")
+    Container(bki_adapter, "Адаптер БКИ", "Java Spring Boot, PostgreSQL", "Интеграция с Бюро кредитных историй")
+    
+    ContainerDb(credit_portal_db, "БД кредитных заявок", "MS SQL", "Заявки, статусы, клиентские данные")
+    ContainerDb(preapproval_db, "БД предодобрений", "PostgreSQL", "Предварительные кредитные предложения")
+    ContainerDb(bki_cache_db, "Кэш БКИ", "PostgreSQL", "Кэшированные кредитные истории")
+    
+    Container(kafka, "Интеграционная шина", "Apache Kafka", "Асинхронная передача сообщений между системами")
+    
+    System_Boundary(existing_systems, "Существующие системы") {
+        Container(credit_pipeline, "Кредитный конвейер", "Camunda BPM, Oracle", "Обработка кредитных заявок по бизнес-процессам")
+        Container(scoring_system, "Система кредитного скоринга", "Python, PostgreSQL", "ML-модель оценки кредитоспособности")
+        Container(abs_system, "АБС", "Delphi, Oracle", "Учет операций, ведение кредитных договоров")
+    }
+}
+
+System_Ext(bki_system, "Бюро кредитных историй", "REST API")
+System_Ext(sms_gateway, "СМС-шлюз")
+
+' Взаимодействие клиентов
+Rel(existing_client, internet_bank, "Просматривает предложения, подает заявки", "HTTPS")
+Rel(new_client, website, "Подает заявку на кредит", "HTTPS")
+Rel(credit_officer, credit_pipeline, "Обрабатывает заявки", "Desktop UI")
+
+' Взаимодействие веб-каналов с порталом
+Rel(internet_bank, credit_portal, "Передает заявки от клиентов", "REST API/HTTPS")
+Rel(website, credit_portal, "Передает заявки с сайта", "REST API/HTTPS")
+Rel(credit_portal, preapproval_service, "Получает предодобренные предложения", "REST API")
+
+' Интеграция через Kafka
+Rel(credit_portal, kafka, "Публикует новые заявки", "Async")
+Rel(kafka, credit_pipeline, "Передает заявки на обработку", "Async")
+Rel(kafka, abs_system, "Уведомления о решениях", "Async")
+
+' Скоринг и БКИ
+Rel(preapproval_service, scoring_system, "Запрашивает скоринговые оценки", "REST API")
+Rel(credit_pipeline, scoring_system, "Запрашивает скоринг для заявок", "REST API")
+Rel(scoring_system, bki_adapter, "Запрашивает кредитные истории", "REST API")
+Rel(bki_adapter, bki_system, "Получает данные БКИ", "REST API/HTTPS")
+
+' Базы данных
+Rel(credit_portal, credit_portal_db, "Сохраняет заявки")
+Rel(preapproval_service, preapproval_db, "Сохраняет предложения")
+Rel(bki_adapter, bki_cache_db, "Кэширует запросы")
+
+' Уведомления
+Rel(credit_pipeline, sms_gateway, "Отправляет СМС о решениях", "API")
+Rel(abs_system, sms_gateway, "Уведомления об открытии кредита", "API")
+
+@enduml

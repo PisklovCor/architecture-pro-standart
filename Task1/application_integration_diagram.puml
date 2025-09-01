@@ -1,0 +1,89 @@
+@startuml Application_Integration_Diagram
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title Схема интеграции приложений банка "Стандарт" с участниками процессов
+
+' Участники процессов
+Person(client, "Клиент", "Клиент банка, подающий заявки на депозиты и кредиты")
+Person(frontOfficeEmployee, "Сотрудник Фронт-офиса", "Менеджер отделения, работает с клиентами лично")
+Person(backOfficeEmployee, "Сотрудник Бэк-офиса", "Обрабатывает заявки, рассчитывает ставки в Excel")
+Person(callCenterEmployee, "Сотрудник кол-центра", "Принимает звонки, создает обращения в CRM")
+Person(creditEmployee, "Сотрудник кредитования", "Анализирует кредитные заявки в Кредитном конвейере")
+
+' Основные внутренние системы банка
+System(abs, "АБС", "Автоматизированная банковская система\\n(Delphi/Oracle)\\nОсновная система учета операций")
+System(internetBank, "Интернет-банк", "Система для клиентов\\n(ASP.NET MVC 4.5/MS SQL)\\nПлатежи и текущие счета")
+System(website, "Сайт банка", "Информационный сайт\\n(PHP/React)\\nМаркетинговая информация")
+System(crm, "CRM система", "Система кол-центра\\n(React/Java/PostgreSQL)\\nОбращения клиентов")
+
+' Кредитные системы
+System(creditConveyor, "Кредитный конвейер", "Обработка кредитных заявок\\n(Camunda/Oracle)\\nБизнес-процессы кредитования")
+System(scoringSystem, "Система скоринга", "Кредитный скоринг\\n(Python/PostgreSQL)\\nОценка кредитоспособности")
+
+' Системы связи и уведомлений
+System(smsGateway, "СМС-шлюз", "Шлюз для отправки СМС\\nИнтеграция с телеком-оператором")
+
+' Внешние системы
+System_Ext(creditBureau, "Бюро кредитных историй", "Внешняя система\\nПредоставляет кредитные истории через API")
+System_Ext(partnerCallCenter, "Партнёрский кол-центр", "Внешний кол-центр\\nРаботает по готовым скриптам")
+System_Ext(telecomOperator, "Телеком-оператор", "Внешний оператор\\nОтправка СМС-сообщений")
+
+' ========== ДЕПОЗИТНЫЕ ПРОЦЕССЫ ==========
+
+' Клиент -> Системы (депозиты)
+Rel(client, frontOfficeEmployee, "Посещает отделение для открытия депозита", "Личное обращение")
+Rel(client, callCenterEmployee, "Звонит для уточнения условий депозита", "Телефонный звонок")
+Rel(client, website, "Просматривает информацию о депозитах", "HTTPS")
+Rel(client, internetBank, "Планируется: подача заявок на депозиты", "HTTPS (TO-BE)")
+
+' Фронт-офис -> Системы
+Rel(frontOfficeEmployee, abs, "Создает заявки на депозиты, консультирует клиентов", "Desktop клиент")
+Rel(frontOfficeEmployee, backOfficeEmployee, "Отправляет письма для расчета ставок", "Email")
+
+' Кол-центр -> Системы  
+Rel(callCenterEmployee, crm, "Создает обращения клиентов", "Web интерфейс")
+Rel(crm, abs, "Передает обращения для обработки", "Интеграция")
+
+' Бэк-офис -> Системы (депозиты)
+Rel(backOfficeEmployee, abs, "Обрабатывает заявки на депозиты", "Desktop клиент")
+Rel(backOfficeEmployee, frontOfficeEmployee, "Отправляет рассчитанные ставки", "Email")
+Rel(backOfficeEmployee, creditEmployee, "Запрашивает данные о кредитном риске для VIP-ставок", "Email")
+
+' ========== КРЕДИТНЫЕ ПРОЦЕССЫ ==========
+
+' Клиент -> Системы (кредиты)
+Rel(client, frontOfficeEmployee, "Подает заявку на кредит в отделении", "Личное обращение")
+
+' Фронт-офис -> Кредитные системы
+Rel(frontOfficeEmployee, abs, "Оформляет кредитные заявки", "Desktop клиент")
+
+' АБС -> Кредитный конвейер
+Rel(abs, creditConveyor, "Передает заявки раз в день", "Database интеграция")
+Rel(creditConveyor, abs, "Возвращает решения раз в день", "Database интеграция")
+
+' Кредитование -> Скоринг
+Rel(creditEmployee, creditConveyor, "Анализирует кредитные заявки", "Web интерфейс")
+Rel(creditConveyor, scoringSystem, "Запрашивает скоринговую оценку", "REST API")
+
+' Скоринг -> Внешние источники данных
+Rel(scoringSystem, creditBureau, "Получает кредитные истории", "REST API онлайн")
+Rel(scoringSystem, abs, "Получает данные о клиентах", "Database sync раз в сутки")
+
+' ========== УВЕДОМЛЕНИЯ И СВЯЗЬ ==========
+
+' СМС уведомления
+Rel(abs, smsGateway, "Отправляет СМС-уведомления клиентам", "API")
+Rel(smsGateway, telecomOperator, "Доставляет СМС", "REST API")
+Rel(telecomOperator, client, "СМС о статусе заявок", "SMS")
+
+' Партнерский кол-центр
+Rel(callCenterEmployee, partnerCallCenter, "Координация работы", "Внешние каналы")
+
+' ========== ДОПОЛНИТЕЛЬНЫЕ ИНТЕГРАЦИИ ==========
+
+' Веб-каналы
+Rel(website, internetBank, "Переход в интернет-банк", "Redirect")
+Rel(internetBank, abs, "Интеграция с основной системой", "Database")
+
+SHOW_LEGEND()
+@enduml

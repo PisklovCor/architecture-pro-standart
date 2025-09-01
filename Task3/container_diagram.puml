@@ -1,0 +1,61 @@
+@startuml Container_Diagram_MVP_Deposits
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Диаграмма контейнеров C4 - MVP онлайн депозитов
+
+Person(client, "Клиент", "Существующий клиент банка")
+Person(newClient, "Новый клиент", "Потенциальный клиент")
+Person(employee, "Сотрудник бэк-офиса", "Депозитные продукты")
+
+System_Ext(cbr, "ЦБ РФ", "Ставки рефинансирования")
+System_Ext(smsProvider, "Телеком-оператор", "Отправка СМС")
+
+System_Boundary(bank, "Банк Стандарт") {
+    
+    Container_Boundary(web, "Веб-слой") {
+        Container(website, "Сайт банка", "PHP, React.js", "Прием заявок от новых клиентов")
+        Container(ibank, "Интернет-банк", "ASP.NET MVC 4.5", "Авторизация и подача заявок")
+    }
+    
+    Container_Boundary(microservices, "Новые микросервисы") {
+        Container(depositPortal, "Веб-портал депозитов", "ASP.NET Core, MS SQL", "Основная логика обработки заявок")
+        Container(rateService, "Сервис управления ставками", "ASP.NET Core, MS SQL", "Расчет и персонализация ставок")
+    }
+    
+    Container_Boundary(integration, "Интеграционный слой") {
+        Container(kafka, "Apache Kafka", "Message Broker", "Асинхронная передача сообщений")
+        Container(smsGateway, "СМС-шлюз", "Existing Service", "Отправка уведомлений")
+    }
+    
+    Container_Boundary(existing, "Существующие системы") {
+        ContainerDb(abs, "АБС", "Delphi, Oracle, PL/SQL", "Ядро банковской системы")
+    }
+}
+
+' Пользовательские взаимодействия
+Rel(client, ibank, "Авторизация и подача заявок", "HTTPS")
+Rel(newClient, website, "Подача заявок", "HTTPS")
+Rel(employee, abs, "Обработка заявок", "Desktop")
+
+' Веб-слой → Микросервисы
+Rel(website, depositPortal, "Передача заявок", "REST API")
+Rel(ibank, depositPortal, "Запрос ставок и подача заявок", "REST API")
+
+' Внутренние интеграции
+Rel(depositPortal, rateService, "Запрос персональных ставок", "REST API")
+Rel(depositPortal, kafka, "Отправка заявок", "Kafka Topic")
+Rel(depositPortal, smsGateway, "Запрос СМС-кода", "REST API")
+
+' Внешние интеграции
+Rel(rateService, cbr, "Получение ставок ЦБ", "REST API")
+
+' Интеграция с АБС
+Rel(kafka, abs, "Заявки на обработку", "Database sync")
+Rel(abs, kafka, "Статусы заявок", "Kafka Topic")
+
+' Уведомления
+Rel(kafka, smsGateway, "Уведомления", "Event")
+Rel(smsGateway, smsProvider, "СМС-сообщения", "REST API")
+
+SHOW_LEGEND()
+@enduml

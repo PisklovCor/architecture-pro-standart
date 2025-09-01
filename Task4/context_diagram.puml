@@ -1,0 +1,47 @@
+@startuml context_diagram
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title Context Diagram - Интеграция кол-центра с системой управления ставками
+
+LAYOUT_TOP_DOWN()
+
+Person(client, "Клиент банка", "Физическое лицо, желающее открыть депозит")
+Person(ccAgent, "Оператор кол-центра", "Сотрудник банка, консультирующий клиентов по телефону")
+Person(backOffice, "Сотрудник бэк-офиса", "Менеджер депозитов, обрабатывающий заявки")
+
+System_Ext(partnerCC, "Партнерский кол-центр", "Внешний кол-центр для обработки пиковых нагрузок")
+System_Ext(cbr, "ЦБ РФ", "Центральный банк, источник ставок рефинансирования")
+System_Ext(smsGateway, "СМС-шлюз", "Сервис отправки СМС уведомлений клиентам")
+
+System_Boundary(bank, "Банк Стандарт") {
+    System(webSite, "Сайт банка", "Веб-сайт для подачи заявок новыми клиентами")
+    System(internetBank, "Интернет-банк", "Система интернет-банкинга для существующих клиентов")
+    System(ratesService, "Сервис управления ставками", "Центральная система расчета и распределения депозитных ставок")
+    System(callCenter, "Система кол-центра", "CRM система для операторов кол-центра банка")
+    System(abs, "АБС", "Автоматизированная банковская система")
+    System(sftpServer, "SFTP-сервер", "Сервер для передачи файлов партнерскому кол-центру")
+}
+
+' Взаимодействия клиентов с системами
+Rel(client, webSite, "Подает заявку на депозит", "HTTPS")
+Rel(client, internetBank, "Подает заявку на депозит", "HTTPS")
+
+' Взаимодействия операторов
+Rel(ccAgent, callCenter, "Консультирует клиентов по ставкам", "Web UI")
+Rel(backOffice, abs, "Обрабатывает заявки на депозиты", "Desktop client")
+
+' Интеграции с сервисом ставок
+Rel(webSite, ratesService, "Получает актуальные ставки", "REST API")
+Rel(internetBank, ratesService, "Получает персональные ставки", "REST API")  
+Rel(callCenter, ratesService, "Получает ставки для консультаций", "REST API")
+
+' Внешние интеграции
+Rel(ratesService, cbr, "Получает ставки рефинансирования", "HTTPS")
+Rel(ratesService, sftpServer, "Генерирует файлы со ставками", "Internal")
+Rel(sftpServer, partnerCC, "Передает файлы со ставками", "SFTP")
+
+' Интеграция с АБС
+Rel(ratesService, abs, "Синхронизирует ставки", "Kafka")
+Rel(abs, smsGateway, "Отправляет уведомления", "REST API")
+
+@enduml
